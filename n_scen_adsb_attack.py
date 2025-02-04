@@ -22,14 +22,24 @@ routes = route_gen.generate_routes()
 
 # Initialize multiple drones with generated routes
 drones = [
-    Drone(id=f"{i+1}", drone_type=f"type{i+1}", acceleration_rate=2.0, climb_rate=3.0, speed=10.0 + i*5,
-          position_error=2.0, altitude_error=1.0, battery_consume_rate=0.05, battery_capacity=10.0 + i*5, route=routes[i])
+    Drone(
+        id=f"{i+1}",
+        drone_type=f"type{i+1}",
+        acceleration_rate=2.0,
+        climb_rate=3.0,
+        speed=10.0 + i * 5,
+        position_error=2.0,
+        altitude_error=1.0,
+        battery_consume_rate=0.05,
+        battery_capacity=10.0 + i * 5,
+        route=routes[i]
+    )
     for i in range(len(routes))
 ]
 
 # Initialize the communication channel, jammer, and spoofer
 channel = ADSBChannel()
-jammer = Jammer(jamming_probability=0.4, noise_intensity=0.8)  # Increase probability as needed
+jammer = Jammer(jamming_probability=0.4, noise_intensity=0.8)  # Adjust probability as needed
 spoofer = Spoofer(spoof_probability=0.3, fake_drone_id="FAKE-DRONE")
 
 # Create a figure for 3D plotting
@@ -79,33 +89,35 @@ def update(frame):
             }
 
             # Step 1: Simulate transmission from the drone to the GCS
-            received_message, delay_ns, corrupted = channel.transmit(original_message, gcs_pos)
+            received_message, delay_ns, corrupted, snr_db = channel.transmit(
+                original_message, gcs_pos, jammer=jammer, spoofer=spoofer
+            )
 
-            # Step 2: Apply Jamming effects
-            jammed_message, jammed = jammer.jam_signal(received_message)
-            if jammed and jammed_message is None:
-                print(f"[Jammer] Drone {drone.id} message lost due to jamming!")
-                continue  # If the message is fully jammed, discard it
-
-            # Step 3: Apply Spoofing effects
-            spoofed_message, spoofed = spoofer.spoof_message(jammed_message)
+            if received_message is None:
+                print(f"Drone {drone.id} message lost during transmission.")
+                continue
 
             # Display Results
             print(f"Original Message: {original_message}")
-            print(f"Received Message (after channel effects): {spoofed_message}")
+            print(f"Received Message (after channel effects): {received_message}")
             print(f"Transmission Delay: {delay_ns:.2f} ns")
-            print(f"Message Corrupted: {'Yes' if corrupted else 'No'}, Jammed: {'Yes' if jammed else 'No'}, Spoofed: {'Yes' if spoofed else 'No'}")
+            print(f"SNR: {snr_db:.2f} dB")
+            print(f"Message Corrupted: {'Yes' if corrupted else 'No'}")
 
-            # Step 4: Update GCS with the received (possibly spoofed) message
-            gcs.receive_update(spoofed_message['drone_id'], 
-                               (spoofed_message['latitude'], 
-                                spoofed_message['longitude'], 
-                                spoofed_message['altitude']))
+            # Step 2: Update GCS with the received message
+            gcs.receive_update(
+                received_message['drone_id'],
+                (
+                    received_message['latitude'],
+                    received_message['longitude'],
+                    received_message['altitude']
+                )
+            )
 
-            # Step 5: Update drone marker position
+            # Step 3: Update drone marker position
             marker = drone_markers[drone.id]
-            marker.set_data([spoofed_message['latitude']], [spoofed_message['longitude']])
-            marker.set_3d_properties([spoofed_message['altitude']])
+            marker.set_data([received_message['latitude']], [received_message['longitude']])
+            marker.set_3d_properties([received_message['altitude']])
 
     if not active_drones:
         print("All drones have completed their routes or are inactive.")
