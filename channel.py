@@ -1,6 +1,8 @@
 import random
 import time
 
+
+
 class Channel:
     def __init__(self, delay_mean=0.1, delay_std=0.05, error_rate=0.01):
         """
