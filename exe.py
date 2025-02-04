@@ -13,7 +13,7 @@ center_lat, center_lon = 38.8977, -77.0365  # White House location
 gcs = GCS(center_lat, center_lon)
 
 # Create a RouteGenerator instance
-route_gen = RouteGenerator(center_lat, center_lon, num_routes=1, waypoints_per_route=5, max_offset=0.02)
+route_gen = RouteGenerator(center_lat, center_lon, num_routes=1, waypoints_per_route=3, max_offset=0.02)
 routes = route_gen.generate_routes()
 
 # Initialize multiple drones with generated routes
