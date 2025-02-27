@@ -12,27 +12,38 @@ center_lat, center_lon = 38.8977, -77.0365  # White House location
 
 # Initialize GCS
 gcs = GCS(center_lat, center_lon)
+gcs_pos = (center_lat, center_lon)
 
 # Create a RouteGenerator instance
-route_gen = RouteGenerator(center_lat, center_lon, num_routes=3, waypoints_per_route=5, max_offset=0.02)
+route_gen = RouteGenerator(center_lat, center_lon, num_routes=1, waypoints_per_route=5, max_offset=0.02)
 routes = route_gen.generate_routes()
 
 # Initialize multiple drones with generated routes
 drones = [
-    Drone(id=f"{i+1}", drone_type=f"type{i+1}", acceleration_rate=2.0, climb_rate=3.0, speed=10.0 + i*5,
-          position_error=2.0, altitude_error=1.0, battery_consume_rate=0.05, battery_capacity=10.0 + i*5, route=routes[i])
+    Drone(
+        id=f"{i+1}",
+        drone_type=f"type{i+1}",
+        acceleration_rate=2.0,
+        climb_rate=3.0,
+        speed=10.0 + i * 5,
+        position_error=2.0,
+        altitude_error=1.0,
+        battery_consume_rate=0.05,
+        battery_capacity=10.0 + i * 5,
+        route=routes[i]
+    )
     for i in range(len(routes))
 ]
 
 # Initialize the communication channel
-channel = Channel(delay_mean=0.1, delay_std=0.05, error_rate=0.01)
+channel = Channel()
 
 # Create a figure for 3D plotting
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 
 # Plot waypoints
-colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']  # Extend as needed for more drones
+colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
 for i, route in enumerate(routes):
     latitudes = [p[0] for p in route]
     longitudes = [p[1] for p in route]
@@ -48,7 +59,6 @@ for i, drone in enumerate(drones):
     marker, = ax.plot([], [], [], 'o', color=colors[i % len(colors)], markersize=6, label=f"Drone {drone.id}")
     drone_markers[drone.id] = marker
 
-# Set labels
 ax.set_xlabel("Latitude")
 ax.set_ylabel("Longitude")
 ax.set_zlabel("Altitude (m)")
@@ -74,18 +84,31 @@ def update(frame):
                 'timestamp': time.time()
             }
 
-            # Transmit message through the channel
-            received_message, delay, corrupted = channel.transmit(original_message)
+            # Simulate transmission from the drone to the GCS
+            received_message, delay_ns, corrupted, snr_db = channel.transmit(
+                original_message, gcs_pos
+            )
 
-            # Print original and received messages
-            print(f"Original Message from Drone {drone.id}: {original_message}")
-            if corrupted:
-                print(f"Received Corrupted Message at GCS after {delay:.2f}s delay: {received_message}")
-            else:
-                print(f"Received Message at GCS after {delay:.2f}s delay: {received_message}")
+            if received_message is None:
+                print(f"Drone {drone.id} message lost during transmission.")
+                continue
 
-            # Update GCS with the received (possibly corrupted) message
-            gcs.receive_update(drone.id, (received_message['latitude'], received_message['longitude'], received_message['altitude']))
+            # Display Results
+            print(f"Original Message: {original_message}")
+            print(f"Received Message (after channel effects): {received_message}")
+            print(f"Transmission Delay: {delay_ns:.2f} ns")
+            print(f"SNR: {snr_db:.2f} dB")
+            print(f"Message Corrupted: {'Yes' if corrupted else 'No'}")
+
+            # Update GCS with the received message
+            gcs.receive_update(
+                received_message['drone_id'],
+                (
+                    received_message['latitude'],
+                    received_message['longitude'],
+                    received_message['altitude']
+                )
+            )
 
             # Update drone marker position
             marker = drone_markers[drone.id]
