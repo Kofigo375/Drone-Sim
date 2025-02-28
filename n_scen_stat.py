@@ -6,7 +6,7 @@ from drone import Drone
 from route import RouteGenerator
 from gcs import GCS
 from adsbchannel import ADSBChannel
-from jammer import Jammer
+from direc_jammer import DirectionalJammer
 from spoofer import Spoofer
 import seaborn as sns
 
@@ -44,8 +44,8 @@ def initialize_drones():
 scenarios = {
     "No Attacks": {"jamming": False, "spoofing": False},
     "Only Spoofing": {"jamming": False, "spoofing": True},
-    "Only Jamming": {"jamming": True, "spoofing": False},
-    "Jamming and Spoofing": {"jamming": True, "spoofing": True},
+    "Only Directional Jamming": {"jamming": True, "spoofing": False},
+    "Directional jamming wave Jamming and Spoofing": {"jamming": True, "spoofing": True},
     "Aggressive Spoofing": {"jamming": False, "spoofing": True, "spoof_probability": 0.7}
 }
 
@@ -136,7 +136,11 @@ def plot_packet_loss_data(results, colors=None, output_path='results/packet_loss
 # Function to run a simulation scenario
 def run_simulation(jamming=False, spoofing=False, spoof_probability=0.3):
     channel = ADSBChannel()
-    jammer = Jammer(jamming_probability=0.4, noise_intensity=0.8) if jamming else None
+    jammer = DirectionalJammer(
+        target_position=gcs_pos, 
+        jamming_probability=0.4, 
+        noise_intensity=0.8
+    ) if jamming else None
     spoofer = Spoofer(spoof_probability=spoof_probability, fake_drone_id="FAKE-DRONE") if spoofing else None
 
     drones = initialize_drones()
